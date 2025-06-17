@@ -1,160 +1,117 @@
-import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import Container from '../../components/layout/Container';
-import Header from '../../components/layout/Header'; // Assuming a generic header
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button'; // For an "Add Client" button if not using FAB
-import { useClients } from '../../hooks/useClients';
-import { colors } from '../../styles/colors';
-import { spacing } from '../../styles/spacing';
-import { typography } from '../../styles/typography';
+import React, { useEffect } from "react";
+import { View, Text, FlatList, Button, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { useClients } from "../../hooks/useClients"; // Adjusted path
+import { useNavigation } from "@react-navigation/native"; // To navigate to AddClientScreen
 
-const ClientsScreen = ({ navigation }) => {
-  const { clients, loading, error, fetchClients } = useClients();
+const ClientsScreen = () => {
+  const navigation = useNavigation(); // Hook for navigation
+  const { clients, loading, error, getClients, clearClientsError } = useClients();
 
-  // Fetch clients when the screen comes into focus and on initial mount
-  useFocusEffect(
-    useCallback(() => {
-      fetchClients();
-    }, [fetchClients])
-  );
+  useEffect(() => {
+    console.log("ClientsScreen: Fetching clients...");
+    getClients(); // Fetch clients when the component mounts
+  }, [getClients]); // getClients is memoized in the hook, so this effect runs once on mount
 
-  const onRefresh = useCallback(() => {
-    fetchClients();
-  }, [fetchClients]);
+  useEffect(() => {
+    if (error) {
+      console.error("ClientsScreen Error:", error);
+      Alert.alert("Error", `Failed to fetch clients: ${error}`);
+      // clearClientsError(); // Optionally clear error after showing
+    }
+  }, [error]);
 
-  const renderClientItem = ({ item }) => (
-    <TouchableOpacity onPress={() => navigation.navigate('ClientDetail', { clientId: item.id })}>
-      <Card style={styles.clientItemCard}>
-        <Text style={styles.clientName}>{item.firstName} {item.lastName}</Text>
-        <Text style={styles.clientEmail}>{item.email}</Text>
-        {item.company && <Text style={styles.clientCompany}>{item.company}</Text>}
-      </Card>
-    </TouchableOpacity>
-  );
-
-  const ListEmptyComponent = () => (
-    <View style={styles.centeredMessageContainer}>
-      {!loading && !error && <Text style={styles.infoText}>No clients found. Add one to get started!</Text>}
+  const renderClient = ({ item }) => (
+    <View style={styles.clientItem}>
+      <Text style={styles.clientName}>{item.name || `Client ID: ${item.id}`}</Text>
+      {/* Add more client details here as needed */}
+      {/* Example: <Text>{item.email}</Text> */}
+      <Button title="Details" onPress={() => navigation.navigate("ClientDetail", { clientId: item.id })} />
     </View>
   );
 
+  if (loading && clients.length === 0) { // Show full screen loader only if no clients are loaded yet
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" />
+        <Text>Loading Clients...</Text>
+      </View>
+    );
+  }
+
   return (
-    <Container>
-      {/* Using a Header component that might be part of the StackNavigator or a custom one */}
-      {/* For this example, let's assume the header is managed by the navigator,
-          otherwise, a <Header title="Clients" navigation={navigation} /> could be here. */}
-
-      {loading && clients.length === 0 && <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />}
-
-      {error && (
-        <View style={styles.centeredMessageContainer}>
-          <Card style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></Card>
-        </View>
-      )}
-
-      {!error && ( // Only render FlatList if no error
-        <FlatList
-          data={clients}
-          renderItem={renderClientItem}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()} // Ensure key is string and unique
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={ListEmptyComponent}
-          refreshControl={
-            <RefreshControl
-              refreshing={loading && clients.length > 0} // Show refresh indicator only when loading more data
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-        />
-      )}
-
-      {/* "Add Client" Button - could be a FAB or a simple button */}
-      <View style={styles.addButtonContainer}>
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>Clients</Text>
         <Button
-          title="Add New Client"
-          onPress={() => navigation.navigate('AddClient')}
-          style={styles.addButton}
-          // icon="plus" // If your Button component supports icons
+            title="Add Client"
+            onPress={() => navigation.navigate("AddClient")} // Navigate to AddClientScreen
         />
       </View>
-    </Container>
+      {loading && <ActivityIndicator style={styles.inlineLoader} />}
+      {error && !loading && (
+        <View style={styles.centered}>
+          <Text style={{ color: "red", marginBottom:10 }}>Error fetching clients: {error}</Text>
+          <Button title="Retry" onPress={getClients} />
+          <Button title="Clear Error (Dev)" onPress={clearClientsError} />
+        </View>
+      )}
+      {!loading && !error && clients.length === 0 && (
+        <View style={styles.centered}>
+          <Text>No clients found.</Text>
+        </View>
+      )}
+      <FlatList
+        data={clients}
+        renderItem={renderClient}
+        keyExtractor={(item) => item.id.toString()} // Ensure id is a string
+        contentContainerStyle={clients.length === 0 && styles.emptyList}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  loader: {
-    flex: 1, // To center it in the container if it's the only thing shown
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  centeredMessageContainer: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.large,
+    padding: 10,
   },
-  errorCard: {
-    backgroundColor: colors.errorBackground,
-    padding: spacing.medium,
-    borderRadius: 8,
-    width: '90%',
-    alignItems: 'center',
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  errorText: {
-    ...typography.body,
-    color: colors.errorText,
-    textAlign: 'center',
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal:10,
   },
-  infoText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
   },
-  listContainer: {
-    flexGrow: 1, // Ensures ListEmptyComponent can center itself
-    paddingVertical: spacing.medium,
-    paddingHorizontal: spacing.large,
-  },
-  clientItemCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: spacing.large, // Increased padding for better touch target and visual balance
-    marginBottom: spacing.medium,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+  clientItem: {
+    backgroundColor: "#f9f9f9",
+    padding: 15,
+    marginVertical: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#eee",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   clientName: {
-    ...typography.h4,
-    color: colors.textPrimary,
-    fontWeight: '600',
-    marginBottom: spacing.tiny,
+    fontSize: 18,
   },
-  clientEmail: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 14,
-    marginBottom: spacing.tiny,
+  emptyList: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  clientCompany: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 13,
-  },
-  addButtonContainer: {
-    padding: spacing.large,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background, // Match screen background or theme
-  },
-  addButton: {
-    backgroundColor: colors.primary,
+  inlineLoader: {
+    marginVertical: 10,
   }
 });
 

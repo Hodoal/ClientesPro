@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Ensure useEffect is imported
 import {
   View,
   Text,
@@ -9,16 +9,15 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-
-import { registerUser, clearError } from '../../store/slices/authSlice';
+import { useAuth } from '../../hooks/useAuth'; // Added useAuth
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { colors, spacing, typography } from '../../styles/theme';
 
 export default function SignUpScreen({ navigation }) {
-  const dispatch = useDispatch();
-  const { loading, error } = useSelector((state) => state.auth);
+  // const dispatch = useDispatch(); // Replaced by useAuth
+  // const { loading, error } = useSelector((state) => state.auth); // Replaced by useAuth
+  const { register, user, isAuthenticated, loading, error, clearAuthenticationError } = useAuth();
 
   const [formData, setFormData] = useState({
     username: '',
@@ -35,7 +34,8 @@ export default function SignUpScreen({ navigation }) {
       [field]: value,
     }));
     if (error) {
-      dispatch(clearError());
+      // dispatch(clearError()); // Replaced by useAuth's clearAuthenticationError
+      clearAuthenticationError();
     }
   };
 
@@ -75,14 +75,22 @@ export default function SignUpScreen({ navigation }) {
     if (!validateForm()) return;
 
     try {
-      await dispatch(registerUser({
+      // await dispatch(registerUser({ // Replaced by useAuth's register
+      //   username: formData.username,
+      //   email: formData.email,
+      //   mobile: formData.mobile,
+      //   password: formData.password,
+      // })).unwrap();
+      await register({ // Data for registration
         username: formData.username,
         email: formData.email,
         mobile: formData.mobile,
         password: formData.password,
-      })).unwrap();
-    } catch (error) {
-      Alert.alert('Error', error);
+      });
+      // Navigation/success alert will be handled by useEffect watching isAuthenticated
+    } catch (error) { // Error should be in state.auth.error from useAuth
+      // Alert.alert('Error', error); // This was for unwrap() error, now handled by error effect
+      console.log("SignUp dispatch caught an error (now in state.auth.error from useAuth):", error);
     }
   };
 
@@ -114,6 +122,10 @@ export default function SignUpScreen({ navigation }) {
               <Text style={styles.activeTabText}>SIGN UP</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Display Loading and Error States from useAuth */}
+          {loading && <Text style={styles.loadingText}>Creating account...</Text>}
+          {error && <Text style={styles.errorText}>Error: {error}</Text>}
 
           {/* Form Fields */}
           <View style={styles.formFields}>
@@ -165,7 +177,39 @@ export default function SignUpScreen({ navigation }) {
   );
 }
 
+// useEffects to handle responses from useAuth hook
+useEffect(() => {
+  if (error) {
+    // Display error in an Alert and log it
+    Alert.alert("Sign Up Error", error);
+    console.log("SignUp Error (from useAuth state):", error);
+    // Clear the error from Redux state after displaying it
+    clearAuthenticationError();
+  }
+}, [error, clearAuthenticationError]); // Dependencies for the error effect
+
+useEffect(() => {
+  if (isAuthenticated && user) {
+    // Display success message and navigate to Login
+    Alert.alert("Sign Up Success", `Welcome ${user.username || user.name || "User"}! Please login.`);
+    console.log("SignUp successful (from useAuth state), user:", user);
+    navigation.navigate("Login");
+  }
+}, [isAuthenticated, user, navigation]); // Dependencies for the success effect
+
 const styles = StyleSheet.create({
+  errorText: {
+    color: colors.danger || 'red',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    fontSize: typography.sizes.sm || 14,
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: colors.text, // Or a specific loading color
+    marginBottom: spacing.md,
+    fontSize: typography.sizes.sm || 14,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.primary,

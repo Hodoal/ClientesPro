@@ -1,64 +1,59 @@
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from "react-redux";
 import {
   loginUser,
-  registerUser,
   logoutUser,
-  checkAuthState,
-  clearError as clearAuthErrorAction, // Renamed to avoid conflict if hook exposes its own clearError
-  setAppLoading as setAuthAppLoadingAction,
-  logoutSuccess // Import if needed for direct dispatch, though logoutUser thunk handles it
-} from '../store/slices/authSlice';
+  registerUser,
+  clearAuth,
+  clearError,
+} from "../store/slices/authSlice"; // Assuming authSlice.js exports these actions
 
-export const useAuth = () => {
+// It might also be useful to have selectors here or directly in the component
+// For simplicity, we will select directly in the hook for now.
+
+const useAuth = () => {
   const dispatch = useDispatch();
 
-  // Selectors for auth state
-  const user = useSelector((state) => state.auth.user);
-  const token = useSelector((state) => state.auth.token);
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  const isLoading = useSelector((state) => state.auth.loading); // For login/register loading
-  const isAppLoading = useSelector((state) => state.auth.appLoading); // For initial auth check loading
-  const error = useSelector((state) => state.auth.error);
+  const { user, token, isAuthenticated, loading, error } = useSelector(
+    (state) => state.auth
+  );
 
-  // Exposed actions, wrapping dispatch
-  const login = (credentials) => { // credentials: { email, password }
-    return dispatch(loginUser(credentials)); // Thunk returns a promise which can be awaited in component
+  // Memoizing action dispatchers can be an optimization,
+  // but for simplicity in this step, we define them directly.
+  // For more complex scenarios or if performance becomes an issue,
+  // consider useCallback.
+
+  const login = (credentials) => {
+    return dispatch(loginUser(credentials)); // loginUser is an async thunk
   };
 
-  const register = (userData) => { // userData: { username, email, password, mobile? }
-    return dispatch(registerUser(userData));
+  const register = (userData) => {
+    return dispatch(registerUser(userData)); // registerUser is an async thunk
   };
 
   const logout = () => {
-    // The logoutUser thunk now dispatches logoutSuccess itself.
-    return dispatch(logoutUser());
+    return dispatch(logoutUser()); // logoutUser is an async thunk
   };
 
-  const checkAuthStatus = () => {
-    // This is typically called once when the app initializes
-    return dispatch(checkAuthState());
+  const clearAuthentication = () => {
+    dispatch(clearAuth());
   };
 
-  const clearError = () => {
-    dispatch(clearAuthErrorAction());
-  };
-
-  const setAppLoading = (isLoading) => { // Manually control appLoading if needed outside of checkAuthState
-    dispatch(setAuthAppLoadingAction(isLoading));
+  const clearAuthenticationError = () => {
+    dispatch(clearError());
   };
 
   return {
     user,
     token,
     isAuthenticated,
-    isLoading,
-    isAppLoading,
+    loading,
     error,
     login,
     register,
     logout,
-    checkAuthStatus,
-    clearError,
-    setAppLoading,
+    clearAuthentication,
+    clearAuthenticationError,
   };
 };
+
+export default useAuth;

@@ -9,18 +9,18 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
 import { ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import { loginUser, clearError } from '../../store/slices/authSlice';
+import { useAuth } from '../../hooks/useAuth'; // Added useAuth
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { colors, spacing, typography } from '../../styles/theme';
 
 export default function LoginScreen({ navigation }) {
-  const dispatch = useDispatch();
-  const { loading, error } = useSelector((state) => state.auth);
+  // const dispatch = useDispatch(); // Replaced by useAuth
+  // const { loading, error } = useSelector((state) => state.auth); // Replaced by useAuth
+  const { login, user, isAuthenticated, loading, error, clearAuthenticationError } = useAuth();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -35,7 +35,8 @@ export default function LoginScreen({ navigation }) {
       [field]: value,
     }));
     if (error) {
-      dispatch(clearError());
+      // dispatch(clearError()); // Replaced by useAuth's clearAuthenticationError
+      clearAuthenticationError();
     }
   };
 
@@ -45,13 +46,18 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
+    // console.log(`Attempting login with email: ${formData.email}`); // Optional: for debugging
     try {
-      await dispatch(loginUser({
-        email: formData.email,
-        password: formData.password,
-      })).unwrap();
-    } catch (error) {
-      Alert.alert('Error', error);
+      // await dispatch(loginUser({ // Replaced by useAuth's login
+      //   email: formData.email,
+      //   password: formData.password,
+      // })).unwrap();
+      await login({ email: formData.email, password: formData.password });
+      // Navigation will be handled by useEffect watching isAuthenticated
+    } catch (error) { // Error should be in state.auth.error from useAuth
+      // Alert.alert('Error', error); // This error is from dispatch().unwrap(), useAuth's error is preferred.
+      // Error is now in `error` from `useAuth()`, handled by useEffect
+      console.log("Login dispatch caught an error (now in state.auth.error from useAuth):", error);
     }
   };
 
@@ -87,6 +93,10 @@ export default function LoginScreen({ navigation }) {
               <Text style={styles.inactiveTabText}>SIGN UP</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Display Loading and Error States from useAuth */}
+          {loading && <ActivityIndicator animating={true} color={colors.primary} style={{marginBottom: spacing.md}} />}
+          {error && <Text style={styles.errorText}>Error: {error}</Text>}
 
           {/* Form Fields */}
           <View style={styles.formFields}>
@@ -126,7 +136,35 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+// useEffects to handle responses from useAuth hook
+useEffect(() => {
+  if (error) {
+    // Display error in an Alert and log it
+    Alert.alert("Login Error", error);
+    console.log("Login Error (from useAuth state):", error);
+    // Clear the error from Redux state after displaying it to prevent re-triggering
+    clearAuthenticationError();
+  }
+}, [error, clearAuthenticationError]); // Dependencies for the error effect
+
+useEffect(() => {
+  if (isAuthenticated && user) {
+    // Display success message and potentially navigate
+    // Using user.name (if available from your user object structure) or user.email
+    Alert.alert("Login Success", `Welcome ${user.name || user.email || "User"}!`);
+    console.log("Login successful (from useAuth state), user:", user);
+    // Example: navigate to the main part of the app and prevent going back to login screen
+    // navigation.replace('MainAppStack');
+  }
+}, [isAuthenticated, user, navigation]); // Dependencies for the authentication success effect
+
 const styles = StyleSheet.create({
+  errorText: {
+    color: colors.danger || 'red', // Use danger color from theme or fallback to 'red'
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    fontSize: typography.sizes.sm || 14, // Use sm size from theme or fallback
+  },
   container: {
     flex: 1,
     backgroundColor: colors.primary,

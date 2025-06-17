@@ -1,110 +1,154 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from './api'; // Uses the newly implemented api.js
 
-const USER_KEY = 'user';
-const TOKEN_KEY = 'userToken';
-
+// Simulación de backend local para MVP
 class AuthService {
-  // Login user
+  constructor() {
+    this.baseUrl = 'http://localhost:3001/api'; // Cambiar por tu servidor local
+    this.users = []; // Base de datos simulada
+    this.currentId = 1;
+  }
+
+  // Simulación de API - reemplazar con llamadas reales al backend
   async login(email, password) {
-    try {
-      // Backend /api/auth/login is expected to return:
-      // { status: 'success', token, data: { user } }
-      const response = await api.post('/auth/login', { email, password });
-      if (response && response.token && response.data?.user) {
-        const { user } = response.data;
-        const { token } = response;
+    return new Promise((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          // Verificar en AsyncStorage si existe el usuario
+          const storedUsers = await AsyncStorage.getItem('users');
+          const users = storedUsers ? JSON.parse(storedUsers) : [];
 
-        // Store user and token
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-        await AsyncStorage.setItem(TOKEN_KEY, token);
+          const user = users.find(u => u.email === email && u.password === password);
 
-        return { user, token };
-      }
-      throw new Error(response?.message || 'Login failed: Invalid response structure from server.');
-    } catch (error) {
-      console.error('AuthService Login Error:', error.message);
-      throw error;
-    }
+          if (user) {
+            const token = `token_${Date.now()}_${Math.random()}`;
+            const userData = {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              mobile: user.mobile,
+            };
+
+            // Guardar token
+            await AsyncStorage.setItem('token', token);
+            await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+            resolve({
+              user: userData,
+              token: token,
+            });
+          } else {
+            reject(new Error('Credenciales inválidas'));
+          }
+        } catch (error) {
+          reject(new Error('Error en el servidor'));
+        }
+      }, 1000); // Simular latencia de red
+    });
   }
 
-  // Register user
-  async register(userData) { // userData: { username, email, password, (optional: mobile) }
-    try {
-      // Backend /api/auth/register is expected to return:
-      // { status: 'success', token, data: { user } }
-      const response = await api.post('/auth/register', userData);
-      if (response && response.token && response.data?.user) {
-        const { user } = response.data;
-        const { token } = response;
+  async register(username, email, mobile, password) {
+    return new Promise((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          // Verificar usuarios existentes
+          const storedUsers = await AsyncStorage.getItem('users');
+          const users = storedUsers ? JSON.parse(storedUsers) : [];
 
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-        await AsyncStorage.setItem(TOKEN_KEY, token);
+          // Verificar si el email ya existe
+          const existingUser = users.find(u => u.email === email);
+          if (existingUser) {
+            reject(new Error('El email ya está registrado'));
+            return;
+          }
 
-        return { user, token };
-      }
-      throw new Error(response?.message || 'Registration failed: Invalid response structure from server.');
-    } catch (error) {
-      console.error('AuthService Register Error:', error.message);
-      throw error;
-    }
+          // Crear nuevo usuario
+          const newUser = {
+            id: Date.now(),
+            username,
+            email,
+            mobile,
+            password, // En producción, esto debe estar hasheado
+            createdAt: new Date().toISOString(),
+          };
+
+          users.push(newUser);
+          await AsyncStorage.setItem('users', JSON.stringify(users));
+
+          // Generar token
+          const token = `token_${Date.now()}_${Math.random()}`;
+          const userData = {
+            id: newUser.id,
+            username: newUser.username,
+            email: newUser.email,
+            mobile: newUser.mobile,
+          };
+
+          // Guardar sesión
+          await AsyncStorage.setItem('token', token);
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+          resolve({
+            user: userData,
+            token: token,
+          });
+        } catch (error) {
+          reject(new Error('Error al registrar usuario'));
+        }
+      }, 1000);
+    });
   }
 
-  // Logout user
   async logout() {
-    try {
-      // Optional: Call a backend logout endpoint if it exists
-      // await api.post('/auth/logout', {});
-
-      await AsyncStorage.removeItem(USER_KEY);
-      await AsyncStorage.removeItem(TOKEN_KEY);
-    } catch (error) {
-      console.error('AuthService Logout Error:', error.message);
-      await AsyncStorage.removeItem(USER_KEY).catch(e => console.error("Logout: User key removal failed", e));
-      await AsyncStorage.removeItem(TOKEN_KEY).catch(e => console.error("Logout: Token key removal failed", e));
-      // Depending on app's needs, may or may not want to throw here.
-      // If logout is user-initiated, usually UI proceeds regardless of backend error.
-    }
+    return new Promise((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('user');
+          resolve(true);
+        } catch (error) {
+          reject(new Error('Error al cerrar sesión'));
+        }
+      }, 500);
+    });
   }
 
-  // Get current user and token from storage
   async getCurrentUser() {
     try {
-      const userString = await AsyncStorage.getItem(USER_KEY);
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      const token = await AsyncStorage.getItem('token');
+      const user = await AsyncStorage.getItem('user');
 
-      if (userString && token) {
+      if (token && user) {
         return {
-          user: JSON.parse(userString),
+          user: JSON.parse(user),
           token: token,
         };
       }
       return null;
     } catch (error) {
-      console.error('AuthService getCurrentUser Error:', error.message);
       return null;
     }
   }
 
-  async verifyToken() {
-    try {
-      // GET /api/auth/me is expected to return current user if token is valid
-      const response = await api.get('/auth/me'); // This will use the token from AsyncStorage via api.js
-      if (response && response.data?.user) {
-        // Re-store user data to keep it fresh, as it might have changed server-side
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
-        return response.data.user; // Return the (potentially updated) user object
-      }
-      // If /auth/me doesn't return user as expected, or if api.get throws for non-OK
-      await this.logout(); // Clear invalid/expired token and user
-      return null;
-    } catch (error) {
-      console.error('AuthService verifyToken Error:', error.message);
-      // If token verification fails (e.g. 401 from api.js), logout
-      // api.js should throw an error for non-OK responses, so this catch block will handle it.
-      await this.logout();
-      return null;
-    }
+  async forgotPassword(email) {
+    return new Promise((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          const storedUsers = await AsyncStorage.getItem('users');
+          const users = storedUsers ? JSON.parse(storedUsers) : [];
+
+          const user = users.find(u => u.email === email);
+          if (user) {
+            // En producción, aquí enviarías un email
+            console.log(`Código de recuperación enviado a: ${email}`);
+            resolve({ message: 'Código de recuperación enviado' });
+          } else {
+            reject(new Error('Email no encontrado'));
+          }
+        } catch (error) {
+          reject(new Error('Error en el servidor'));
+        }
+      }, 1000);
+    });
   }
 }
 

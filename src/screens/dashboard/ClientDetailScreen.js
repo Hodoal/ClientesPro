@@ -1,236 +1,251 @@
-import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
-import Container from '../../components/layout/Container';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
-import { useClients } from '../../hooks/useClients';
-import { colors } from '../../styles/colors';
-import { spacing } from '../../styles/spacing';
-import { typography } from '../../styles/typography';
+import React, { useState, useEffect } from "react";
+import { View, Text, Button, StyleSheet, Alert, ActivityIndicator, TextInput } from "react-native";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { useClients } from "../../hooks/useClients";
 
-const ClientDetailScreen = ({ navigation }) => {
+const ClientDetailScreen = () => {
   const route = useRoute();
-  const { clientId } = route.params;
+  const navigation = useNavigation();
+  const { clientId } = route.params; // Get clientId passed via navigation params
 
-  const {
-    currentClient,
-    clientLoading,
-    clientError,
-    fetchClientById,
-    deleteClient
-  } = useClients();
+  const { clients, getClients, updateClient, deleteClient, loading, error, clearClientsError } = useClients();
 
-  const loadClientData = useCallback(() => {
-    if (clientId) {
-      fetchClientById(clientId);
+  const [client, setClient] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  // const [editPhone, setEditPhone] = useState(""); // Example if phone is also editable
+
+  // Find the client from the Redux state or fetch if not available
+  useEffect(() => {
+    // Ensure clients are loaded. If getClients is memoized, this is efficient.
+    if (clients.length === 0) {
+      console.log("ClientDetailScreen: clients list empty, fetching clients...");
+      getClients();
     }
-  }, [clientId, fetchClientById]);
+  }, [clients.length, getClients]); // Depend on clients.length to re-evaluate if it changes
 
-  // Fetch client details when the screen comes into focus or clientId changes
-  useFocusEffect(loadClientData);
+  useEffect(() => {
+    const currentClient = clients.find(c => c.id === clientId);
+    if (currentClient) {
+      setClient(currentClient);
+      setEditName(currentClient.name || "");
+      setEditEmail(currentClient.email || "");
+      // setEditPhone(currentClient.phone || ""); // If phone is editable
+    } else if (clients.length > 0 && !loading && !client) {
+      // Added !client to prevent alert if client was just deleted and component is about to unmount/go back
+      console.warn(`ClientDetailScreen: Client with ID ${clientId} not found in the list after clients loaded.`);
+      Alert.alert("Not Found", "Client details could not be found. They may have been removed or the ID is incorrect.");
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
+    }
+  }, [clientId, clients, loading, navigation, client]); // Added client to dependency list
 
-  const handleEdit = () => {
-    // Navigate to an EditClientScreen or AddClientScreen in edit mode
-    // Pass currentClient data to pre-fill the form
-    navigation.navigate('EditClient', { clientData: currentClient });
-  };
+  useEffect(() => {
+    if (error) {
+      console.error("ClientDetailScreen Error:", error);
+      Alert.alert("Error", `An error occurred: ${error}`);
+      // clearClientsError(); // Optionally clear, but might hide persistent load errors
+    }
+  }, [error]);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     Alert.alert(
       "Confirm Delete",
-      `Are you sure you want to delete client "${currentClient?.firstName} ${currentClient?.lastName}"?`,
+      `Are you sure you want to delete ${client?.name}? This action cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            try {
-              await deleteClient(clientId);
-              Alert.alert('Success', 'Client deleted successfully.');
-              navigation.goBack(); // Or navigate to ClientsList
-            } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to delete client.');
+            console.log(`Attempting to delete client ID: ${clientId}`);
+            const resultAction = await deleteClient(clientId);
+            if (deleteClient.fulfilled.match(resultAction)) {
+              Alert.alert("Success", "Client deleted successfully.");
+              navigation.goBack();
+            } else {
+              // Error state from useClients hook will be updated by the thunk's rejection
+              // The useEffect for 'error' can handle displaying it.
+              // Or, access specific error from resultAction.payload:
+              const errorMessage = resultAction.payload?.message || resultAction.error?.message || "Failed to delete client.";
+              Alert.alert("Error", errorMessage);
+              console.log("Failed to delete client:", resultAction);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
-  if (clientLoading && !currentClient) { // Show full screen loader only on initial load
+  const handleUpdate = async () => {
+    if (!editName.trim() || !editEmail.trim()) { // Added trim() for validation
+        Alert.alert("Validation Error", "Name and email cannot be empty.");
+        return;
+    }
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail.trim())) {
+        Alert.alert('Validation Error', 'Please enter a valid email address.');
+        return;
+    }
+
+    console.log(`Attempting to update client ID: ${clientId} with Name: ${editName}, Email: ${editEmail}`);
+    // Include other fields like editPhone if they are part of the update
+    const clientDataToUpdate = { name: editName.trim(), email: editEmail.trim() };
+    // if (editPhone.trim()) clientDataToUpdate.phone = editPhone.trim();
+
+
+    const resultAction = await updateClient({ id: clientId, data: clientDataToUpdate });
+    if (updateClient.fulfilled.match(resultAction)) {
+        Alert.alert("Success", "Client updated successfully.");
+        setIsEditing(false);
+        // Client state in Redux is updated by the thunk, local client state updates via useEffect listening to `clients`
+    } else {
+        const errorMessage = resultAction.payload?.message || resultAction.error?.message || "Failed to update client.";
+        Alert.alert("Error", errorMessage);
+        console.log("Failed to update client:", resultAction);
+    }
+  };
+
+  const handleInputChange = () => {
+    if (error) { // Clear general errors when user starts typing
+      clearClientsError();
+    }
+  };
+
+  if (loading && !client && clients.length === 0) { // More specific loading condition
     return (
-      <Container style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </Container>
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" />
+        <Text>Loading Client Details...</Text>
+      </View>
     );
   }
 
-  if (clientError && !currentClient) { // Show error if client couldn't be fetched at all
+  if (!client && !loading) { // If client not found and not currently loading
     return (
-      <Container style={styles.centeredContainer}>
-        <Card style={styles.errorCard}><Text style={styles.errorText}>{clientError}</Text></Card>
-        <Button title="Go Back" onPress={() => navigation.goBack()} />
-      </Container>
+      <View style={[styles.container, styles.centered]}>
+        <Text>Client data is not available.</Text>
+         <Button title="Go Back" onPress={() => navigation.goBack()} />
+      </View>
     );
   }
 
-  if (!currentClient) { // Handles case where client is null after loading (e.g. not found, or error cleared it)
+  if (!client) { // Fallback for initial render before useEffects might run or if client becomes null
      return (
-      <Container style={styles.centeredContainer}>
-        <Text style={styles.infoText}>Client not found or no data available.</Text>
-        <Button title="Go Back" onPress={() => navigation.goBack()} />
-      </Container>
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" />
+        <Text>Fetching client...</Text>
+      </View>
     );
   }
+
 
   return (
-    <Container>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={
-            <RefreshControl
-                refreshing={clientLoading && !!currentClient} // Show refresh indicator if loading while data is present
-                onRefresh={loadClientData}
-                colors={[colors.primary]}
-                tintColor={colors.primary}
-            />
-        }
-      >
-        <Card style={styles.detailCard}>
-          <Text style={styles.clientName}>{currentClient.firstName} {currentClient.lastName}</Text>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Email:</Text>
-            <Text style={styles.detailValue}>{currentClient.email || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Phone:</Text>
-            <Text style={styles.detailValue}>{currentClient.phone || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Address:</Text>
-            <Text style={styles.detailValue}>{currentClient.address || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Company:</Text>
-            <Text style={styles.detailValue}>{currentClient.company || 'N/A'}</Text>
-          </View>
-
-          {/* Display other fields as needed, e.g., createdAt, updatedAt */}
-           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Added On:</Text>
-            <Text style={styles.detailValue}>{currentClient.createdAt ? new Date(currentClient.createdAt).toLocaleDateString() : 'N/A'}</Text>
-          </View>
-        </Card>
-
-        {clientError && <Card style={styles.errorCardInline}><Text style={styles.errorText}>{clientError}</Text></Card>}
-
-        <View style={styles.actionsContainer}>
-          <Button
-            title="Edit Client"
-            onPress={handleEdit}
-            style={styles.actionButton}
-            disabled={clientLoading}
+    <View style={styles.container}>
+      {isEditing ? (
+        <>
+          <Text style={styles.title}>Edit Client</Text>
+          <TextInput
+            style={styles.input}
+            value={editName}
+            onChangeText={(text) => { setEditName(text); handleInputChange();}}
+            placeholder="Name"
+            disabled={loading}
           />
-          <Button
-            title="Delete Client"
-            onPress={handleDelete}
-            style={[styles.actionButton, styles.deleteButton]}
-            disabled={clientLoading}
+          <TextInput
+            style={styles.input}
+            value={editEmail}
+            onChangeText={(text) => { setEditEmail(text); handleInputChange();}}
+            placeholder="Email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            disabled={loading}
           />
-        </View>
-      </ScrollView>
-    </Container>
+          {/* Example for phone field if editable
+          <TextInput
+            style={styles.input}
+            value={editPhone}
+            onChangeText={(text) => { setEditPhone(text); handleInputChange();}}
+            placeholder="Phone"
+            keyboardType="phone-pad"
+            disabled={loading}
+          />
+          */}
+          <Button title="Save Changes" onPress={handleUpdate} disabled={loading} />
+          <Button title="Cancel Edit" onPress={() => setIsEditing(false)} disabled={loading} />
+        </>
+      ) : (
+        <>
+          <Text style={styles.title}>Client Details</Text>
+          <Text style={styles.detailText}>ID: {client.id}</Text>
+          <Text style={styles.detailText}>Name: {client.name}</Text>
+          <Text style={styles.detailText}>Email: {client.email}</Text>
+          {client.phone && <Text style={styles.detailText}>Phone: {client.phone}</Text>}
+          <View style={styles.buttonContainer}>
+            <Button title="Edit" onPress={() => setIsEditing(true)} disabled={loading} />
+            <Button title="Delete" onPress={handleDelete} color={styles.deleteButton.color} disabled={loading} />
+          </View>
+        </>
+      )}
+      {loading && <ActivityIndicator style={styles.inlineLoader}/>}
+      {/* Error display can be more specific if needed, or rely on global error effect alert */}
+      {error && !isEditing && <Text style={styles.errorText}>Error: {error}</Text>}
+      {!isEditing && <Button title="Clear Error (Dev)" onPress={clearClientsError} />}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  centeredContainer: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.large,
+    padding: 20,
+    backgroundColor: '#fff', // Assuming a white background
   },
-  scrollContainer: {
-    paddingVertical: spacing.large,
-    paddingHorizontal: spacing.medium,
+  centered: {
+    flex: 1, // Ensure centered takes full screen
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: '#fff',
   },
-  detailCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: spacing.large,
-    marginBottom: spacing.large,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+    color: '#333', // Darker color for title
   },
-  clientName: {
-    ...typography.h2,
-    color: colors.textPrimary,
-    fontWeight: 'bold',
-    marginBottom: spacing.large,
-    textAlign: 'center',
+  detailText: {
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#555', // Slightly lighter color for details
   },
-  detailItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.medium,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  buttonContainer: {
+    marginTop: 20,
+    flexDirection: "row",
+    justifyContent: "space-around",
   },
-  detailLabel: {
-    ...typography.bodyBold,
-    color: colors.textSecondary,
-    flex: 1,
+  input: {
+    height: 45, // Slightly taller input
+    borderColor: "#ccc", // Lighter border color
+    borderWidth: 1,
+    marginBottom: 15, // More space below input
+    paddingHorizontal: 10,
+    borderRadius: 8, // More rounded corners
+    backgroundColor: '#f9f9f9', // Slight off-white for input background
   },
-  detailValue: {
-    ...typography.body,
-    color: colors.textPrimary,
-    flex: 2,
-    textAlign: 'right',
-  },
-  actionsContainer: {
-    marginTop: spacing.medium,
-    paddingHorizontal: spacing.small, // Align with card padding visually
-  },
-  actionButton: {
-    backgroundColor: colors.primary,
-    marginBottom: spacing.medium,
-  },
-  deleteButton: {
-    backgroundColor: colors.danger,
-  },
-  errorCard: { // For full screen error
-    backgroundColor: colors.errorBackground,
-    padding: spacing.large,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: spacing.medium,
-  },
-  errorCardInline: { // For error below details but above buttons
-    backgroundColor: colors.errorBackground,
-    padding: spacing.medium,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: spacing.small,
-    marginBottom: spacing.medium,
+  inlineLoader: {
+    marginTop: 15,
+    marginBottom: 10,
   },
   errorText: {
-    ...typography.body,
-    color: colors.errorText,
+    color: 'red',
+    marginTop: 10,
     textAlign: 'center',
   },
-  infoText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center'
+  deleteButton: { // Specific style for delete button text color (though Button prop is 'color')
+    color: 'red',
   }
 });
 
