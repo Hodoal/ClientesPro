@@ -4,16 +4,42 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
+import UserManagementScreen from '../screens/dashboard/UserManagementScreen'; // Import UserManagementScreen
 import ClientsScreen from '../screens/dashboard/ClientsScreen';
 import ClientDetailScreen from '../screens/dashboard/ClientDetailScreen';
 import AddClientScreen from '../screens/dashboard/AddClientScreen';
+import EditClientScreen from '../screens/dashboard/EditClientScreen'; // Import EditClientScreen
 import ReportsScreen from '../screens/dashboard/ReportsScreen';
 import ProfileScreen from '../screens/dashboard/ProfileScreen';
 
 import { colors } from '../styles/theme';
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createStackNavigator(); // Keep one Stack definition
+
+// Stack for the "Home" tab to include Dashboard and UserManagement
+function HomeStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="DashboardHome" // Renamed to avoid conflict if 'Dashboard' is used elsewhere
+        component={DashboardScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="UserManagement"
+        component={UserManagementScreen}
+        options={{
+          title: 'Gestion des Utilisateurs', // Header title for this screen
+          headerStyle: { backgroundColor: colors.primary },
+          headerTintColor: colors.white, // Ensure theme consistency
+          headerBackTitleVisible: false,
+        }}
+      />
+      {/* Add other screens navigable from DashboardScreen here if any */}
+    </Stack.Navigator>
+  );
+}
 
 function ClientsStack() {
   return (
@@ -27,18 +53,30 @@ function ClientsStack() {
         name="ClientDetail" 
         component={ClientDetailScreen}
         options={{ 
-          title: 'Detalle del Cliente',
+          title: 'Détails du Client', // Corrected French
           headerStyle: { backgroundColor: colors.primary },
-          headerTintColor: 'white',
+          headerTintColor: colors.white,
+          headerBackTitleVisible: false,
         }}
       />
       <Stack.Screen 
         name="AddClient" 
         component={AddClientScreen}
         options={{ 
-          title: 'Nuevo Cliente',
+          title: 'Nouveau Client',
           headerStyle: { backgroundColor: colors.primary },
-          headerTintColor: 'white',
+          headerTintColor: colors.white,
+          headerBackTitleVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="EditClient"
+        component={EditClientScreen}
+        options={{
+          title: 'Modifier Client', // Header title for this screen
+          headerStyle: { backgroundColor: colors.primary },
+          headerTintColor: colors.white,
+          headerBackTitleVisible: false,
         }}
       />
     </Stack.Navigator>
@@ -77,7 +115,7 @@ export default function DashboardNavigator() {
     >
       <Tab.Screen 
         name="Home" 
-        component={DashboardScreen}
+        component={HomeStack} // Use HomeStack here
         options={{ tabBarLabel: 'Inicio' }}
       />
       <Tab.Screen 

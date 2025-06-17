@@ -1,133 +1,68 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from './api'; // Assuming api.js exports { get, post, put, delete }
+
+const API_ENDPOINT = '/clients';
 
 class ClientsService {
-  constructor() {
-    this.baseUrl = 'http://localhost:3001/api';
-  }
-
   async getAll() {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          resolve(clients);
-        } catch (error) {
-          reject(new Error('Error al obtener clientes'));
-        }
-      }, 800);
-    });
+    try {
+      // Expected backend response for GET /api/clients:
+      // { status: 'success', results: clients.length, data: { clients: [...] } }
+      // The api.get method should parse this.
+      const response = await api.get(API_ENDPOINT);
+      // Ensure accessing the correct part of the response.
+      // If api.get returns the full {status, data: {clients}}, then response.data.clients
+      // If api.get directly returns the content of 'data', then response.clients
+      // If api.get directly returns the array, then response itself
+      return response?.data?.clients || response?.clients || response || [];
+    } catch (error) {
+      console.error('Error in clientsService.getAll:', error.message);
+      throw error;
+    }
   }
 
   async getById(id) {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          const client = clients.find(c => c.id === id);
-          
-          if (client) {
-            resolve(client);
-          } else {
-            reject(new Error('Cliente no encontrado'));
-          }
-        } catch (error) {
-          reject(new Error('Error al obtener cliente'));
-        }
-      }, 500);
-    });
+    try {
+      // Expected backend: { status: 'success', data: { client: {...} } }
+      const response = await api.get(`${API_ENDPOINT}/${id}`);
+      return response?.data?.client || response?.client;
+    } catch (error) {
+      console.error(`Error in clientsService.getById for ID ${id}:`, error.message);
+      throw error;
+    }
   }
 
   async create(clientData) {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          
-          const newClient = {
-            id: Date.now(),
-            ...clientData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          
-          clients.push(newClient);
-          await AsyncStorage.setItem('clients', JSON.stringify(clients));
-          
-          resolve(newClient);
-        } catch (error) {
-          reject(new Error('Error al crear cliente'));
-        }
-      }, 800);
-    });
+    try {
+      // Expected backend: { status: 'success', data: { client: newClient } }
+      const response = await api.post(API_ENDPOINT, clientData);
+      return response?.data?.client || response?.client;
+    } catch (error) {
+      console.error('Error in clientsService.create:', error.message);
+      throw error;
+    }
   }
 
   async update(id, clientData) {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          
-          const index = clients.findIndex(c => c.id === id);
-          if (index !== -1) {
-            clients[index] = {
-              ...clients[index],
-              ...clientData,
-              updatedAt: new Date().toISOString(),
-            };
-            
-            await AsyncStorage.setItem('clients', JSON.stringify(clients));
-            resolve(clients[index]);
-          } else {
-            reject(new Error('Cliente no encontrado'));
-          }
-        } catch (error) {
-          reject(new Error('Error al actualizar cliente'));
-        }
-      }, 800);
-    });
+    try {
+      // Expected backend: { status: 'success', data: { client: updatedClient } }
+      const response = await api.put(`${API_ENDPOINT}/${id}`, clientData);
+      return response?.data?.client || response?.client;
+    } catch (error) {
+      console.error(`Error in clientsService.update for ID ${id}:`, error.message);
+      throw error;
+    }
   }
 
   async delete(id) {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          
-          const filteredClients = clients.filter(c => c.id !== id);
-          await AsyncStorage.setItem('clients', JSON.stringify(filteredClients));
-          
-          resolve(true);
-        } catch (error) {
-          reject(new Error('Error al eliminar cliente'));
-        }
-      }, 600);
-    });
-  }
-
-  async search(term) {
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const storedClients = await AsyncStorage.getItem('clients');
-          const clients = storedClients ? JSON.parse(storedClients) : [];
-          
-          const filteredClients = clients.filter(client =>
-            client.name.toLowerCase().includes(term.toLowerCase()) ||
-            client.email.toLowerCase().includes(term.toLowerCase()) ||
-            client.phone.includes(term)
-          );
-          
-          resolve(filteredClients);
-        } catch (error) {
-          reject(new Error('Error en la búsqueda'));
-        }
-      }, 400);
-    });
+    try {
+      // Expected backend: 204 No Content, or { status: 'success', data: null }
+      // api.delete should handle 204 appropriately.
+      await api.delete(`${API_ENDPOINT}/${id}`);
+      return { id }; // Return id for potential use in UI state updates.
+    } catch (error) {
+      console.error(`Error in clientsService.delete for ID ${id}:`, error.message);
+      throw error;
+    }
   }
 }
 
