@@ -1,8 +1,16 @@
-import { registerRootComponent } from 'expo';
+import { configureStore } from '@reduxjs/toolkit';
+import authSlice from './slices/authSlice';
+import clientsSlice from './slices/clientsSlice';
 
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+export const store = configureStore({
+  reducer: {
+    auth: authSlice,
+    clients: clientsSlice,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        ignoredActions: ['persist/PERSIST'],
+      },
+    }),
+});
