@@ -8,15 +8,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { loginUser, clearError } from '../../store/slices/authSlice';
+import { useAuth } from '../../hooks/useAuth';
+import colors from '../../styles/colors'; // Importamos colors directamente
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const dispatch = useDispatch();
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -25,69 +26,86 @@ export default function LoginScreen({ navigation }) {
     }
 
     try {
-      await dispatch(loginUser({ email, password })).unwrap();
+      setLoading(true);
+      const result = await login(email, password);
+      
+      if (result.success) {
+        console.log('Login exitoso:', result);
+      } else {
+        Alert.alert('Error', result.error || 'Error al iniciar sesión');
+      }
     } catch (error) {
-      Alert.alert('Error', error);
+      console.error('Error completo:', error);
+      Alert.alert(
+        'Error de inicio de sesión',
+        error.message === 'Error al iniciar sesión' 
+          ? 'Las credenciales proporcionadas son incorrectas. Por favor, verifica tu email y contraseña.'
+          : error.message
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  React.useEffect(() => {
-    if (error) {
-      Alert.alert('Error', error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
+  const handleForgotPassword = () => {
+    navigation.navigate('ForgotPassword');
+  };
+
+  const handleSignUp = () => {
+    navigation.navigate('SignUp');
+  };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>ClientesPro</Text>
-        <Text style={styles.subtitle}>Inicia sesión en tu cuenta</Text>
+      <View style={styles.formContainer}>
+        <Text style={styles.title}>Iniciar Sesión</Text>
+        
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholderTextColor={colors.gray[500]}
+        />
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Correo electrónico"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+        <TextInput
+          style={styles.input}
+          placeholder="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          placeholderTextColor={colors.gray[500]}
+        />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+        <TouchableOpacity
+          style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+          )}
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            <Text style={styles.buttonText}>
-              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.forgotPasswordButton}
+          onPress={handleForgotPassword}
+        >
+          <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('ForgotPassword')}
-          >
-            <Text style={styles.linkText}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('SignUp')}
-          >
-            <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
+        <View style={styles.signUpContainer}>
+          <Text style={styles.signUpText}>¿No tienes una cuenta? </Text>
+          <TouchableOpacity onPress={handleSignUp}>
+            <Text style={styles.signUpButtonText}>Regístrate</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -98,59 +116,67 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.white,
   },
-  content: {
+  formContainer: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
+    backgroundColor: colors.white,
   },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 30,
     textAlign: 'center',
-    marginBottom: 10,
-    color: '#2196F3',
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 40,
-    color: '#666',
-  },
-  form: {
-    width: '100%',
+    color: colors.primary,
   },
   input: {
-    backgroundColor: 'white',
+    height: 50,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
     borderRadius: 8,
-    padding: 15,
+    paddingHorizontal: 15,
     marginBottom: 15,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    color: colors.dark,
   },
-  button: {
-    backgroundColor: '#2196F3',
+  loginButton: {
+    backgroundColor: colors.primary,
+    height: 50,
     borderRadius: 8,
-    padding: 15,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginTop: 20,
   },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
+  loginButtonDisabled: {
+    backgroundColor: colors.gray[400],
   },
-  buttonText: {
-    color: 'white',
+  loginButtonText: {
+    color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
   },
-  linkButton: {
+  forgotPasswordButton: {
+    marginTop: 15,
     alignItems: 'center',
-    marginBottom: 10,
   },
-  linkText: {
-    color: '#2196F3',
+  forgotPasswordText: {
+    color: colors.primary,
     fontSize: 14,
+  },
+  signUpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  signUpText: {
+    color: colors.gray[600],
+    fontSize: 14,
+  },
+  signUpButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
