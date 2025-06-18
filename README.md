@@ -160,6 +160,6 @@ Remember to secure your API keys and sensitive data by using environment variabl
 
 ## 📸 App Screenshot
 
-![image](https://github.com/user-attachments/assets/2170d6e0-8cc1-4601-97d0-9c36ee22ae5d)
-![image](https://github.com/user-attachments/assets/f706baad-e4d5-46a3-b771-928b6dc9db61)
+![image](https://github.com/user-attachments/assets/2170d6e0-8cc1-4601-97d0-9c36ee22ae5d)  ![image](https://github.com/user-attachments/assets/f706baad-e4d5-46a3-b771-928b6dc9db61)
+
 
