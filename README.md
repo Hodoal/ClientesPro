@@ -160,10 +160,6 @@ Remember to secure your API keys and sensitive data by using environment variabl
 
 ## 📸 App Screenshot
 
-Below is a placeholder for a screenshot of the ClientesPro application. Please replace `your-app-screenshot-url.jpg` with the actual URL to your app's screenshot.
+![image](https://github.com/user-attachments/assets/2170d6e0-8cc1-4601-97d0-9c36ee22ae5d)
+![image](https://github.com/user-attachments/assets/f706baad-e4d5-46a3-b771-928b6dc9db61)
 
-Consider using a tool like [AppMockUp](https://app-mockup.com/) or [Shotsnapp](https://shotsnapp.com/) to generate a professional-looking image of your app within an iPhone frame.
-
-![ClientesPro App Screenshot - iPhone Mockup](your-app-screenshot-url.jpg)
-
-*(Please replace the above markdown image tag with your actual screenshot. If you have the image locally in your project (e.g., in an `assets` or `docs` folder), you can use a relative path instead of a URL.)*
